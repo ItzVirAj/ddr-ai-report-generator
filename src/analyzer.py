@@ -1,8 +1,10 @@
+# src/analyzer.py
+
 from src.schema import validate_ddr
 import json
 import os
 import textwrap
-from typing import Dict, Any
+from typing import Dict, Any, List
 from dotenv import load_dotenv
 from google import genai
 
@@ -10,7 +12,6 @@ from src.normalizer import build_llm_context
 from src.severity_engine import evaluate_severity
 
 
-# Load .env file from root folder
 load_dotenv(
     dotenv_path=os.path.join(
         os.path.dirname(os.path.dirname(__file__)),
@@ -21,10 +22,7 @@ load_dotenv(
 
 class DDRAnalyzer:
 
-    def __init__(self, model: str = "gemini-3.1-flash-lite-preview"):
-        """
-        Initialize the Code Analyzer with Gemini API.
-        """
+    def __init__(self, model: str = "gemini-3-flash-preview"):
 
         api_key = os.environ.get("GEMINI_API_KEY")
 
@@ -35,8 +33,6 @@ class DDRAnalyzer:
 
         self.client = genai.Client(api_key=api_key)
         self.model = model
-
-        # prevent extremely large prompts
         self.max_chars = 12000
 
     # ---------------------------------------------------------
@@ -53,7 +49,7 @@ class DDRAnalyzer:
         return resp.text or ""
 
     # ---------------------------------------------------------
-    # prompt size protection
+    # Prompt size protection
     # ---------------------------------------------------------
 
     def _truncate(self, text: str) -> str:
@@ -74,10 +70,8 @@ class DDRAnalyzer:
 
         text = text.strip()
 
-        # remove ```json blocks
         if text.startswith("```"):
             parts = text.split("```")
-
             if len(parts) >= 2:
                 text = parts[1]
 
@@ -95,11 +89,17 @@ class DDRAnalyzer:
     def analyze_documents(
         self,
         inspection_text: str,
-        thermal_text: str
+        thermal_text: str,
+        inspection_images: List[Dict] = None,
+        thermal_images: List[Dict] = None
     ) -> Dict[str, Any]:
         """
         Generate DDR structured report from inspection + thermal documents.
+        Passes image metadata to Gemini for accurate image assignment.
         """
+
+        inspection_images = inspection_images or []
+        thermal_images = thermal_images or []
 
         context = build_llm_context(inspection_text, thermal_text)
 
@@ -109,9 +109,22 @@ class DDRAnalyzer:
         inspection_obs = context.get("inspection_observations", [])
         thermal_obs = context.get("thermal_observations", [])
 
-        # -------------------------------------------------------
-        # FIXED PROMPT — enforces room separation + thermal linking
-        # -------------------------------------------------------
+        # build image reference list for prompt
+        inspection_image_refs = [
+            f"{img['image_id']} (page {img['page_num']})"
+            for img in inspection_images
+            if img.get("image_id") and img.get("page_num")
+        ]
+
+        thermal_image_refs = [
+            f"{img['image_id']} (page {img['page_num']})"
+            for img in thermal_images
+            if img.get("image_id") and img.get("page_num")
+        ]
+
+        # limit to avoid overloading prompt
+        inspection_image_refs = inspection_image_refs[:60]
+        thermal_image_refs = thermal_image_refs[:60]
 
         prompt = textwrap.dedent(f"""
         You are a professional building diagnostics engineer.
@@ -151,8 +164,8 @@ class DDRAnalyzer:
            - CORRECT: Three separate observations for Hall, Bedroom, Kitchen
 
         2. thermal_confirmation field:
-           - If thermal report confirms moisture in that area → write the thermal reading or note
-           - If thermal report does NOT mention that area → write "Not confirmed by thermal scan"
+           - If thermal report confirms moisture → write the thermal reading
+           - If not confirmed → write "Not confirmed by thermal scan"
            - Never leave it blank
 
         3. source field:
@@ -160,8 +173,15 @@ class DDRAnalyzer:
            - "thermal" → only in thermal report
            - "both" → confirmed in both reports
 
-        4. related_image_ids → leave as empty list []
-           (images will be mapped automatically after analysis)
+        4. related_image_ids field — CRITICAL RULE:
+           - You are given extracted image IDs with their page numbers
+           - Image ID format: label_pPAGE_imgINDEX
+             Example: inspection_p3_img2 means page 3, image 2
+           - Assign image IDs from the SAME PAGE as the observation area
+           - Match images to observations using page proximity and context
+           - Assign 2 to 4 images per observation
+           - Use ONLY image IDs from the lists provided below
+           - Do NOT invent or modify image IDs
 
         5. Do NOT invent facts. Use only what is in the reports.
 
@@ -190,6 +210,12 @@ class DDRAnalyzer:
 
         Key thermal indicators detected:
         {thermal_obs}
+
+        AVAILABLE INSPECTION IMAGE IDs — use these for related_image_ids:
+        {inspection_image_refs}
+
+        AVAILABLE THERMAL IMAGE IDs — use these for related_image_ids:
+        {thermal_image_refs}
 
         INSPECTION REPORT:
         {inspection_clean}
@@ -235,196 +261,6 @@ class DDRAnalyzer:
             }
 
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
-    # ------------------------------------------------------------------
-    # EXISTING CODE ANALYSIS METHODS (UNCHANGED)
-    # ------------------------------------------------------------------
-
-    def analyze_code(self, code: str, language: str) -> Dict[str, Any]:
-
-        prompt = textwrap.dedent(f"""
-        You are an expert code reviewer.
-
-        Analyze the following {language} code and provide:
-
-        1. Bugs
-        2. Security Issues
-        3. Code Quality improvements
-        4. Performance improvements
-        5. Best Practices
-
-        Code:
-
-        ```{language}
-        {code}
-        ```
-        """)
-
-        try:
-
-            result = self._generate(prompt)
-
-            return {
-                "success": True,
-                "analysis": result,
-                "language": language
-            }
-
-        except Exception as e:
-
-            return {
-                "success": False,
-                "error": str(e)
-            }
-
-    # ---------------------------------------------------------
-
-    def suggest_fixes(self, code: str, language: str, issue: str) -> Dict[str, Any]:
-
-        prompt = textwrap.dedent(f"""
-        Issue:
-        {issue}
-
-        Code:
-
-        ```{language}
-        {code}
-        ```
-
-        Provide corrected code and explanation.
-        """)
-
-        try:
-
-            result = self._generate(prompt)
-
-            return {
-                "success": True,
-                "suggestion": result,
-                "language": language
-            }
-
-        except Exception as e:
-
-            return {
-                "success": False,
-                "error": str(e)
-            }
-
-    # ---------------------------------------------------------
-
-    def explain_code(self, code: str, language: str) -> Dict[str, Any]:
-
-        prompt = textwrap.dedent(f"""
-        Explain the following {language} code clearly.
-
-        ```{language}
-        {code}
-        ```
-        """)
-
-        try:
-
-            result = self._generate(prompt)
-
-            return {
-                "success": True,
-                "explanation": result,
-                "language": language
-            }
-
-        except Exception as e:
-
-            return {
-                "success": False,
-                "error": str(e)
-            }
-
-    # ---------------------------------------------------------
-
-    def check_complexity(self, code: str, language: str) -> Dict[str, Any]:
-
-        prompt = textwrap.dedent(f"""
-        Analyze the complexity of the following {language} code.
-
-        ```{language}
-        {code}
-        ```
-        """)
-
-        try:
-
-            result = self._generate(prompt)
-
-            return {
-                "success": True,
-                "complexity_analysis": result,
-                "language": language
-            }
-
-        except Exception as e:
-
-            return {
-                "success": False,
-                "error": str(e)
-            }
-
-    # ---------------------------------------------------------
-
-    def generate_tests(self, code: str, language: str) -> Dict[str, Any]:
-
-        prompt = textwrap.dedent(f"""
-        Generate unit tests for the following {language} code.
-
-        ```{language}
-        {code}
-        ```
-        """)
-
-        try:
-
-            result = self._generate(prompt)
-
-            return {
-                "success": True,
-                "tests": result,
-                "language": language
-            }
-
-        except Exception as e:
-
-            return {
-                "success": False,
-                "error": str(e)
-            }
-
-    # ---------------------------------------------------------
-
-    def refactor_code(self, code: str, language: str) -> Dict[str, Any]:
-
-        prompt = textwrap.dedent(f"""
-        Refactor the following {language} code.
-
-        ```{language}
-        {code}
-        ```
-        """)
-
-        try:
-
-            result = self._generate(prompt)
-
-            return {
-                "success": True,
-                "refactored_code": result,
-                "language": language
-            }
-
-        except Exception as e:
-
             return {
                 "success": False,
                 "error": str(e)

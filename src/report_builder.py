@@ -1,19 +1,15 @@
 # src/report_builder.py
 
 import os
+import base64
 from datetime import datetime
 from jinja2 import Environment, FileSystemLoader
 from src.utils import make_sure_folder_exists
 
 
 def _build_image_map(inspection_data, thermal_data):
-    """
-    Build dict of {image_id: absolute_file_path}
-    so the HTML template can load images correctly.
-    """
 
     _image_map = {}
-
     _all_images = []
 
     if inspection_data and "images" in inspection_data:
@@ -39,15 +35,50 @@ def _build_image_map(inspection_data, thermal_data):
     return _image_map
 
 
+def _embed_images_as_base64(image_map: dict) -> dict:
+    """
+    Convert image paths to base64 data URIs.
+    Ensures images render correctly in PDF on all platforms.
+    """
+
+    embedded = {}
+
+    for img_id, img_path in image_map.items():
+
+        try:
+            if not os.path.exists(img_path):
+                continue
+
+            with open(img_path, "rb") as img_file:
+                img_bytes = img_file.read()
+
+            ext = os.path.splitext(img_path)[1].lower()
+
+            mime_map = {
+                ".jpg":  "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".png":  "image/png",
+                ".gif":  "image/gif",
+                ".webp": "image/webp",
+            }
+
+            mime_type = mime_map.get(ext, "image/png")
+
+            b64 = base64.b64encode(img_bytes).decode("utf-8")
+
+            embedded[img_id] = f"data:{mime_type};base64,{b64}"
+
+        except Exception:
+            continue
+
+    return embedded
+
+
 def _normalize_ddr(ddr_data):
-    """
-    Normalize DDR structure so the template never breaks.
-    """
 
     if not isinstance(ddr_data, dict):
         return {}
 
-    # analyzer may return {"success":True,"ddr":{...}}
     if "ddr" in ddr_data:
         ddr_data = ddr_data["ddr"]
 
@@ -65,30 +96,22 @@ def _normalize_ddr(ddr_data):
     return ddr_data
 
 
-def build_html_report(
-        ddr_data,
-        inspection_data,
-        thermal_data,
-        output_path,
-        templates_dir="templates"
+def _render_html(
+    ddr_data,
+    inspection_data,
+    thermal_data,
+    templates_dir="templates",
+    for_pdf=False
 ):
-    """
-    Render the DDR HTML report using Jinja2 template.
-    """
 
-    # ensure output directory exists
-    output_dir = os.path.dirname(output_path)
-
-    if output_dir:
-        make_sure_folder_exists(output_dir)
-
-    # normalize DDR structure
     ddr_data = _normalize_ddr(ddr_data)
 
-    # build image lookup table
     _image_map = _build_image_map(inspection_data, thermal_data)
 
-    # setup Jinja2 environment
+    # embed as base64 for PDF
+    if for_pdf:
+        _image_map = _embed_images_as_base64(_image_map)
+
     _env = Environment(
         loader=FileSystemLoader(templates_dir),
         autoescape=True
@@ -99,20 +122,85 @@ def build_html_report(
     except Exception as e:
         raise RuntimeError(f"Template load failed: {e}")
 
-    # generate timestamp
     _generated_date = datetime.now().strftime("%B %d, %Y at %I:%M %p")
 
-    # render HTML
-    _rendered_html = _template.render(
+    return _template.render(
         ddr=ddr_data,
         image_map=_image_map,
         generated_date=_generated_date
     )
 
-    # write file
-    with open(output_path, "w", encoding="utf-8") as _out_file:
-        _out_file.write(_rendered_html)
+
+def build_html_report(
+    ddr_data,
+    inspection_data,
+    thermal_data,
+    output_path,
+    templates_dir="templates"
+):
+
+    output_dir = os.path.dirname(output_path)
+
+    if output_dir:
+        make_sure_folder_exists(output_dir)
+
+    rendered_html = _render_html(
+        ddr_data=ddr_data,
+        inspection_data=inspection_data,
+        thermal_data=thermal_data,
+        templates_dir=templates_dir,
+        for_pdf=False
+    )
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(rendered_html)
 
     print(f"[report_builder] HTML report saved to: {output_path}")
+
+    return output_path
+
+
+def build_pdf_report(
+    ddr_data,
+    inspection_data,
+    thermal_data,
+    output_path,
+    templates_dir="templates"
+):
+
+    try:
+        from xhtml2pdf import pisa
+    except ImportError:
+        raise RuntimeError(
+            "xhtml2pdf not installed. Run: pip install xhtml2pdf"
+        )
+
+    output_dir = os.path.dirname(output_path)
+
+    if output_dir:
+        make_sure_folder_exists(output_dir)
+
+    rendered_html = _render_html(
+        ddr_data=ddr_data,
+        inspection_data=inspection_data,
+        thermal_data=thermal_data,
+        templates_dir=templates_dir,
+        for_pdf=True
+    )
+
+    with open(output_path, "wb") as pdf_file:
+
+        pisa_status = pisa.CreatePDF(
+            src=rendered_html,
+            dest=pdf_file,
+            encoding="utf-8"
+        )
+
+    if pisa_status.err:
+        raise RuntimeError(
+            f"PDF generation failed with {pisa_status.err} errors"
+        )
+
+    print(f"[report_builder] PDF report saved to: {output_path}")
 
     return output_path

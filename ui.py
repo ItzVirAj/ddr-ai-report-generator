@@ -3,12 +3,11 @@
 import streamlit as st
 import os
 import tempfile
-from pathlib import Path
 
 from src.extractor import extract_from_pdf
-from src.analyzer import DDRAnalyzer                        # FIXED name
-from src.image_mapper import map_images_to_observations     # ADDED
-from src.report_builder import build_html_report
+from src.analyzer import DDRAnalyzer
+from src.image_mapper import map_images_to_observations
+from src.report_builder import build_html_report, build_pdf_report
 from src.utils import save_json, make_sure_folder_exists
 
 
@@ -115,7 +114,7 @@ if run_button:
             )
 
         st.success(
-            f"Inspection report extracted — "
+            f"Inspection extracted — "
             f"{len(inspection_data.get('pages', []))} pages, "
             f"{len(inspection_data.get('images', []))} images"
         )
@@ -133,12 +132,11 @@ if run_button:
             )
 
         st.success(
-            f"Thermal report extracted — "
+            f"Thermal extracted — "
             f"{len(thermal_data.get('pages', []))} pages, "
             f"{len(thermal_data.get('images', []))} images"
         )
 
-        # save debug JSON
         save_json(inspection_data, "outputs/debug_inspection_extraction.json")
         save_json(thermal_data, "outputs/debug_thermal_extraction.json")
 
@@ -146,9 +144,9 @@ if run_button:
         # STEP 3 — GEMINI ANALYSIS
         # -------------------------------------------------
 
-        with st.spinner("Step 3/4 — Analyzing reports with Gemini AI..."):
+        with st.spinner("Step 3/4 — Analyzing with Gemini AI..."):
 
-            analyzer = DDRAnalyzer()                        # FIXED name
+            analyzer = DDRAnalyzer()
 
             result = analyzer.analyze_documents(
                 inspection_data.get("full_text", ""),
@@ -161,18 +159,14 @@ if run_button:
             st.stop()
 
         ddr_data = result.get("ddr", {})
-
         obs_count = len(ddr_data.get("area_wise_observations", []))
 
-        st.success(
-            f"Analysis complete — "
-            f"{obs_count} area observations generated"
-        )
+        st.success(f"Analysis complete — {obs_count} observations generated")
 
         save_json(ddr_data, "outputs/debug_ddr_raw.json")
 
         # -------------------------------------------------
-        # STEP 3.5 — IMAGE MAPPING                        # ADDED
+        # STEP 3.5 — IMAGE MAPPING
         # -------------------------------------------------
 
         with st.spinner("Mapping images to observations..."):
@@ -181,15 +175,13 @@ if run_button:
                 observations=ddr_data.get("area_wise_observations", []),
                 inspection_images=inspection_data.get("images", []),
                 thermal_images=thermal_data.get("images", []),
-                inspection_pages=inspection_data.get("pages", []),
-                thermal_pages=thermal_data.get("pages", [])
             )
 
         # -------------------------------------------------
         # STEP 4 — BUILD HTML REPORT
         # -------------------------------------------------
 
-        with st.spinner("Step 4/4 — Building DDR report..."):
+        with st.spinner("Step 4/4 — Building HTML report..."):
 
             report_path = build_html_report(
                 ddr_data=ddr_data,
@@ -198,12 +190,36 @@ if run_button:
                 output_path="outputs/ddr_report.html"
             )
 
-        st.success("✅ DDR Report Generated Successfully!")
+        # -------------------------------------------------
+        # STEP 5 — BUILD PDF REPORT
+        # -------------------------------------------------
 
+        pdf_path = "outputs/ddr_report.pdf"
+        pdf_success = False
+
+        with st.spinner("Step 5/5 — Building PDF report..."):
+
+            try:
+                build_pdf_report(
+                    ddr_data=ddr_data,
+                    inspection_data=inspection_data,
+                    thermal_data=thermal_data,
+                    output_path=pdf_path
+                )
+                pdf_success = True
+
+            except Exception as pdf_err:
+                st.warning(f"PDF generation failed: {str(pdf_err)}")
+
+        # -------------------------------------------------
+        # SUCCESS
+        # -------------------------------------------------
+
+        st.success("✅ DDR Report Generated Successfully!")
         st.divider()
 
         # -------------------------------------------------
-        # DDR SUMMARY STATS
+        # SUMMARY STATS
         # -------------------------------------------------
 
         severity = ddr_data.get(
@@ -229,9 +245,9 @@ if run_button:
         st.subheader("📄 Report Preview")
 
         st.info(
-            "Images may not display in the preview below due to "
-            "browser security restrictions. Download the report "
-            "and open it locally to see all images."
+            "Images may not display in preview due to browser "
+            "security restrictions. Download and open locally "
+            "to see all images."
         )
 
         with open(report_path, "r", encoding="utf-8") as f:
@@ -243,18 +259,43 @@ if run_button:
             scrolling=True
         )
 
+        st.divider()
+
         # -------------------------------------------------
-        # DOWNLOAD BUTTON
+        # DOWNLOAD BUTTONS
         # -------------------------------------------------
 
-        with open(report_path, "rb") as f:
-            st.download_button(
-                label="⬇ Download DDR Report (HTML)",
-                data=f,
-                file_name="ddr_report.html",
-                mime="text/html",
-                use_container_width=True
-            )
+        st.subheader("📥 Download Report")
+
+        col_html, col_pdf = st.columns(2)
+
+        with col_html:
+            with open(report_path, "rb") as f:
+                st.download_button(
+                    label="⬇ Download HTML Report",
+                    data=f,
+                    file_name="ddr_report.html",
+                    mime="text/html",
+                    key="download_html",
+                    use_container_width=True
+                )
+
+        with col_pdf:
+            if pdf_success:
+                with open(pdf_path, "rb") as f:
+                    st.download_button(
+                        label="⬇ Download PDF Report",
+                        data=f,
+                        file_name="ddr_report.pdf",
+                        mime="application/pdf",
+                        key="download_pdf",
+                        use_container_width=True
+                    )
+            else:
+                st.error(
+                    "PDF not available. "
+                    "Run: pip install weasyprint"
+                )
 
     except Exception as e:
 
