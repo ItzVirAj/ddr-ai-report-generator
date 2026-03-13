@@ -1,7 +1,7 @@
 # src/extractor.py
 
 import os
-import fitz          # this is pymupdf — the import name is fitz
+import fitz          # pymupdf
 from PIL import Image
 import io
 from src.utils import clean_text, make_sure_folder_exists
@@ -27,6 +27,7 @@ def extract_from_pdf(pdf_path, image_output_folder, doc_label):
         ]
     }
     """
+
     make_sure_folder_exists(image_output_folder)
 
     _result = {
@@ -38,46 +39,79 @@ def extract_from_pdf(pdf_path, image_output_folder, doc_label):
 
     _all_text_parts = []
 
+    # Track extracted images to prevent duplicates
+    _seen_xrefs = set()
+
     # open the PDF
     _doc = fitz.open(pdf_path)
 
     for _page_index in range(len(_doc)):
+
         _page = _doc[_page_index]
         _page_num = _page_index + 1
 
-        # --- extract text from this page ---
-        _raw_text = _page.get_text("text")
+        # ---------------------------
+        # TEXT EXTRACTION
+        # ---------------------------
+
+        try:
+            _raw_text = _page.get_text("text")
+        except Exception:
+            _raw_text = ""
+
         _page_text = clean_text(_raw_text)
-        _all_text_parts.append(f"[Page {_page_num}]\n{_page_text}")
+
+        _all_text_parts.append(
+            f"[Page {_page_num}]\n{_page_text}"
+        )
 
         _result["pages"].append({
             "page_num": _page_num,
             "text": _page_text
         })
 
-        # --- extract images from this page ---
+        # ---------------------------
+        # IMAGE EXTRACTION
+        # ---------------------------
+
         _image_list = _page.get_images(full=True)
 
         for _img_index, _img_ref in enumerate(_image_list):
-            _xref = _img_ref[0]   # xref is the image reference id in pymupdf
+
+            _xref = _img_ref[0]
+
+            # skip duplicates (major bug fix)
+            if _xref in _seen_xrefs:
+                continue
+
+            _seen_xrefs.add(_xref)
 
             try:
+
                 _base_image = _doc.extract_image(_xref)
-                _image_bytes = _base_image["image"]
-                _image_ext = _base_image["ext"]   # usually png or jpeg
 
-                # build a meaningful filename
-                _image_id = f"{doc_label}_p{_page_num}_img{_img_index}"
-                _image_filename = f"{_image_id}.{_image_ext}"
-                _image_save_path = os.path.join(image_output_folder, _image_filename)
+                _image_bytes = _base_image.get("image")
+                _image_ext = _base_image.get("ext", "png")
 
-                # save the image to disk
+                if not _image_bytes:
+                    continue
+
                 _img_obj = Image.open(io.BytesIO(_image_bytes))
 
-                # skip tiny images — they're usually decorative borders or icons
                 _width, _height = _img_obj.size
-                if _width < 50 or _height < 50:
+
+                # skip tiny decorative images
+                if _width < 200 or _height < 200:
                     continue
+
+                # build filename
+                _image_id = f"{doc_label}_p{_page_num}_img{_img_index}"
+                _image_filename = f"{_image_id}.{_image_ext}"
+
+                _image_save_path = os.path.join(
+                    image_output_folder,
+                    _image_filename
+                )
 
                 _img_obj.save(_image_save_path)
 
@@ -90,8 +124,10 @@ def extract_from_pdf(pdf_path, image_output_folder, doc_label):
                 })
 
             except Exception as _err:
-                # some embedded objects aren't real images — just skip them
-                print(f"  [skip] could not extract image {_xref} on page {_page_num}: {_err}")
+                # some embedded objects aren't real images
+                print(
+                    f"[skip] could not extract image {_xref} on page {_page_num}: {_err}"
+                )
                 continue
 
     _doc.close()
@@ -100,6 +136,9 @@ def extract_from_pdf(pdf_path, image_output_folder, doc_label):
 
     _total_images = len(_result["images"])
     _total_pages = len(_result["pages"])
-    print(f"[extractor] {doc_label}: {_total_pages} pages, {_total_images} images extracted")
+
+    print(
+        f"[extractor] {doc_label}: {_total_pages} pages, {_total_images} images extracted"
+    )
 
     return _result

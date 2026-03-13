@@ -7,51 +7,79 @@ from pathlib import Path
 
 def make_sure_folder_exists(folder_path):
     """
-    Just makes sure a folder is there before we try to write into it.
-    Nothing fancy — avoids FileNotFoundError surprises later.
+    Ensure a folder exists before writing files into it.
     """
+
+    if not folder_path:
+        return
+
     Path(folder_path).mkdir(parents=True, exist_ok=True)
 
 
 def save_json(data, file_path):
     """
-    Saves a dict as a pretty-printed JSON file.
-    Useful for debugging — we can see exactly what got extracted
-    before sending it to the LLM.
+    Save a dict as pretty JSON for debugging or storage.
+    Automatically creates parent folder if needed.
     """
+
+    parent = os.path.dirname(file_path)
+
+    if parent:
+        make_sure_folder_exists(parent)
+
     with open(file_path, "w", encoding="utf-8") as _f:
         json.dump(data, _f, indent=2, ensure_ascii=False)
 
 
 def load_json(file_path):
     """
-    Loads a JSON file back into a Python dict.
+    Load a JSON file safely.
     """
+
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"JSON file not found: {file_path}")
+
     with open(file_path, "r", encoding="utf-8") as _f:
         return json.load(_f)
 
 
 def clean_text(raw_text):
     """
-    PDFs often have weird whitespace, line breaks in odd places,
-    and repeated blank lines. This cleans that up a bit before
-    we send it to the LLM.
+    Clean messy PDF text before sending to the LLM.
+
+    Fixes:
+    - random whitespace
+    - broken newlines
+    - empty lines
     """
+
+    if not raw_text:
+        return ""
+
     _lines = raw_text.split("\n")
     _cleaned = []
 
     for _line in _lines:
-        _stripped = _line.strip()
-        if _stripped:
-            _cleaned.append(_stripped)
 
-    # rejoin with single newlines
+        _stripped = _line.strip()
+
+        if not _stripped:
+            continue
+
+        # remove weird PDF artifacts
+        _stripped = _stripped.replace("\t", " ")
+
+        _cleaned.append(_stripped)
+
     return "\n".join(_cleaned)
 
 
 def get_file_stem(file_path):
     """
-    Returns just the filename without extension.
-    e.g. 'inputs/inspection_report.pdf' → 'inspection_report'
+    Returns filename without extension.
+
+    Example:
+    inputs/inspection_report.pdf → inspection_report
     """
+
     return Path(file_path).stem

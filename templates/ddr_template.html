@@ -1,279 +1,348 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Detailed Diagnostic Report</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Detailed Diagnostic Report</title>
 
-    body {
-      font-family: 'Segoe UI', Arial, sans-serif;
-      font-size: 14px;
-      color: #2c2c2c;
-      background: #f4f6f9;
-      padding: 40px 20px;
-    }
+<style>
 
-    .report_wrapper {
-      max-width: 900px;
-      margin: 0 auto;
-      background: #fff;
-      border-radius: 8px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-      overflow: hidden;
-    }
+*{box-sizing:border-box;margin:0;padding:0}
 
-    .report_header {
-      background: #1a3c5e;
-      color: white;
-      padding: 36px 40px;
-    }
+body{
+font-family:'Segoe UI',Arial,sans-serif;
+font-size:14px;
+color:#2c2c2c;
+background:#f4f6f9;
+padding:40px 20px;
+}
 
-    .report_header h1 {
-      font-size: 26px;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-    }
+.report_wrapper{
+max-width:900px;
+margin:0 auto;
+background:#fff;
+border-radius:8px;
+box-shadow:0 2px 12px rgba(0,0,0,0.08);
+overflow:hidden;
+}
 
-    .report_header .report_meta {
-      margin-top: 10px;
-      font-size: 13px;
-      opacity: 0.8;
-    }
+.report_header{
+background:#1a3c5e;
+color:white;
+padding:36px 40px;
+}
 
-    .report_body {
-      padding: 36px 40px;
-    }
+.report_header h1{
+font-size:26px;
+font-weight:700;
+}
 
-    .section {
-      margin-bottom: 36px;
-    }
+.report_meta{
+margin-top:8px;
+font-size:13px;
+opacity:.85;
+}
 
-    .section_title {
-      font-size: 16px;
-      font-weight: 700;
-      color: #1a3c5e;
-      border-left: 4px solid #1a3c5e;
-      padding-left: 12px;
-      margin-bottom: 14px;
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
-    }
+.report_body{
+padding:36px 40px;
+}
 
-    .section_content {
-      line-height: 1.7;
-      color: #3a3a3a;
-    }
+.section{
+margin-bottom:36px;
+}
 
-    .observation_card {
-      border: 1px solid #e0e6ef;
-      border-radius: 6px;
-      padding: 16px 20px;
-      margin-bottom: 16px;
-      background: #f9fafc;
-    }
+.section_title{
+font-size:16px;
+font-weight:700;
+color:#1a3c5e;
+border-left:4px solid #1a3c5e;
+padding-left:12px;
+margin-bottom:14px;
+text-transform:uppercase;
+}
 
-    .observation_card .area_label {
-      font-weight: 700;
-      font-size: 15px;
-      color: #1a3c5e;
-      margin-bottom: 6px;
-    }
+.section_content{
+line-height:1.7;
+color:#3a3a3a;
+}
 
-    .observation_card .source_tag {
-      display: inline-block;
-      font-size: 11px;
-      padding: 2px 8px;
-      border-radius: 12px;
-      margin-bottom: 8px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.3px;
-    }
+.observation_card{
+border:1px solid #e0e6ef;
+border-radius:6px;
+padding:16px 20px;
+margin-bottom:16px;
+background:#f9fafc;
+}
 
-    .source_inspection { background: #dbeafe; color: #1e40af; }
-    .source_thermal    { background: #fee2e2; color: #b91c1c; }
-    .source_both       { background: #d1fae5; color: #065f46; }
+.area_label{
+font-weight:700;
+font-size:15px;
+color:#1a3c5e;
+margin-bottom:6px;
+}
 
-    .observation_text {
-      color: #3a3a3a;
-      line-height: 1.6;
-      margin-bottom: 10px;
-    }
+.source_tag{
+display:inline-block;
+font-size:11px;
+padding:2px 8px;
+border-radius:12px;
+margin-bottom:8px;
+font-weight:600;
+}
 
-    .observation_images {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      margin-top: 10px;
-    }
+.source_inspection{background:#dbeafe;color:#1e40af}
+.source_thermal{background:#fee2e2;color:#b91c1c}
+.source_both{background:#d1fae5;color:#065f46}
 
-    .observation_images img {
-      max-width: 260px;
-      max-height: 200px;
-      object-fit: contain;
-      border-radius: 4px;
-      border: 1px solid #ddd;
-    }
+.observation_text{
+margin-bottom:10px;
+line-height:1.6;
+}
 
-    .image_not_available {
-      font-style: italic;
-      color: #999;
-      font-size: 12px;
-    }
+.observation_images{
+display:flex;
+flex-wrap:wrap;
+gap:12px;
+margin-top:10px;
+}
 
-    .severity_box {
-      border-radius: 6px;
-      padding: 16px 20px;
-    }
+.observation_images img{
+max-width:260px;
+max-height:200px;
+object-fit:contain;
+border-radius:4px;
+border:1px solid #ddd;
+}
 
-    .severity_low      { background: #d1fae5; border-left: 4px solid #10b981; }
-    .severity_medium   { background: #fef3c7; border-left: 4px solid #f59e0b; }
-    .severity_high     { background: #fee2e2; border-left: 4px solid #ef4444; }
-    .severity_critical { background: #fce7f3; border-left: 4px solid #be185d; }
+.actions_list{
+list-style:none;
+padding:0;
+}
 
-    .severity_level {
-      font-size: 18px;
-      font-weight: 700;
-      margin-bottom: 6px;
-    }
+.actions_list li{
+padding:8px 0 8px 20px;
+border-bottom:1px solid #f0f0f0;
+position:relative;
+}
 
-    .actions_list {
-      list-style: none;
-      padding: 0;
-    }
+.actions_list li::before{
+content:"→";
+position:absolute;
+left:0;
+color:#1a3c5e;
+font-weight:bold;
+}
 
-    .actions_list li {
-      padding: 8px 0 8px 20px;
-      border-bottom: 1px solid #f0f0f0;
-      position: relative;
-      line-height: 1.5;
-    }
+.severity_box{
+border-radius:6px;
+padding:16px 20px;
+}
 
-    .actions_list li::before {
-      content: "→";
-      position: absolute;
-      left: 0;
-      color: #1a3c5e;
-      font-weight: bold;
-    }
+.severity_low{background:#d1fae5;border-left:4px solid #10b981}
+.severity_medium{background:#fef3c7;border-left:4px solid #f59e0b}
+.severity_high{background:#fee2e2;border-left:4px solid #ef4444}
+.severity_critical{background:#fce7f3;border-left:4px solid #be185d}
 
-    .missing_info_box {
-      background: #fafafa;
-      border: 1px dashed #ccc;
-      border-radius: 6px;
-      padding: 14px 18px;
-      color: #666;
-      font-style: italic;
-    }
+.missing_box{
+background:#fafafa;
+border:1px dashed #ccc;
+padding:14px 18px;
+font-style:italic;
+color:#666;
+border-radius:6px;
+}
 
-    .report_footer {
-      background: #f4f6f9;
-      padding: 20px 40px;
-      font-size: 12px;
-      color: #888;
-      border-top: 1px solid #e0e6ef;
-      text-align: center;
-    }
-  </style>
+.report_footer{
+background:#f4f6f9;
+padding:20px 40px;
+font-size:12px;
+color:#888;
+border-top:1px solid #e0e6ef;
+text-align:center;
+}
+
+</style>
 </head>
+
 <body>
-  <div class="report_wrapper">
 
-    <div class="report_header">
-      <h1>Detailed Diagnostic Report (DDR)</h1>
-      <div class="report_meta">Generated on: {{ generated_date }}</div>
-    </div>
+<div class="report_wrapper">
 
-    <div class="report_body">
+<div class="report_header">
+<h1>Detailed Diagnostic Report (DDR)</h1>
+<div class="report_meta">Generated on: {{ generated_date }}</div>
+</div>
 
-      <!-- 1. Property Issue Summary -->
-      <div class="section">
-        <div class="section_title">1. Property Issue Summary</div>
-        <div class="section_content">{{ ddr.property_issue_summary }}</div>
-      </div>
+<div class="report_body">
 
-      <!-- 2. Area-wise Observations -->
-      <div class="section">
-        <div class="section_title">2. Area-wise Observations</div>
-        {% for obs in ddr.area_wise_observations %}
-        <div class="observation_card">
-          <div class="area_label">{{ obs.area }}</div>
+<!-- PROPERTY SUMMARY -->
 
-          {% if obs.source == 'inspection' %}
-            <span class="source_tag source_inspection">Inspection Report</span>
-          {% elif obs.source == 'thermal' %}
-            <span class="source_tag source_thermal">Thermal Report</span>
-          {% else %}
-            <span class="source_tag source_both">Both Reports</span>
-          {% endif %}
+<div class="section">
+<div class="section_title">1. Property Issue Summary</div>
 
-          <div class="observation_text">{{ obs.observation }}</div>
+<div class="section_content">
+{{ ddr.property_issue_summary if ddr.property_issue_summary else "Not Available" }}
+</div>
+</div>
 
-          <!-- images for this observation -->
-          {% if obs.related_image_ids %}
-            <div class="observation_images">
-              {% for img_id in obs.related_image_ids %}
-                {% if image_map[img_id] is defined %}
-                  <div>
-                    <img src="{{ image_map[img_id] }}" alt="{{ img_id }}" />
-                    <div style="font-size:11px; color:#888; text-align:center; margin-top:4px;">{{ img_id }}</div>
-                  </div>
-                {% else %}
-                  <div class="image_not_available">Image Not Available: {{ img_id }}</div>
-                {% endif %}
-              {% endfor %}
-            </div>
-          {% endif %}
-        </div>
-        {% endfor %}
-      </div>
 
-      <!-- 3. Probable Root Cause -->
-      <div class="section">
-        <div class="section_title">3. Probable Root Cause</div>
-        <div class="section_content">{{ ddr.probable_root_cause }}</div>
-      </div>
+<!-- AREA OBSERVATIONS -->
 
-      <!-- 4. Severity Assessment -->
-      <div class="section">
-        <div class="section_title">4. Severity Assessment</div>
-        {% set sev = ddr.severity_assessment.level | lower %}
-        <div class="severity_box severity_{{ sev }}">
-          <div class="severity_level">{{ ddr.severity_assessment.level }}</div>
-          <div>{{ ddr.severity_assessment.reasoning }}</div>
-        </div>
-      </div>
+<div class="section">
+<div class="section_title">2. Area-wise Observations</div>
 
-      <!-- 5. Recommended Actions -->
-      <div class="section">
-        <div class="section_title">5. Recommended Actions</div>
-        <ul class="actions_list">
-          {% for action in ddr.recommended_actions %}
-          <li>{{ action }}</li>
-          {% endfor %}
-        </ul>
-      </div>
+{% if ddr.area_wise_observations %}
 
-      <!-- 6. Additional Notes -->
-      <div class="section">
-        <div class="section_title">6. Additional Notes</div>
-        <div class="section_content">{{ ddr.additional_notes }}</div>
-      </div>
+{% for obs in ddr.area_wise_observations %}
 
-      <!-- 7. Missing or Unclear Information -->
-      <div class="section">
-        <div class="section_title">7. Missing or Unclear Information</div>
-        <div class="missing_info_box">{{ ddr.missing_or_unclear_information }}</div>
-      </div>
+<div class="observation_card">
 
-    </div><!-- /report_body -->
+<div class="area_label">
+{{ obs.area if obs.area else "General Area" }}
+</div>
 
-    <div class="report_footer">
-      AI-generated DDR — Review by a qualified professional before acting on recommendations.
-    </div>
+{% if obs.source == "inspection" %}
+<span class="source_tag source_inspection">Inspection</span>
+{% elif obs.source == "thermal" %}
+<span class="source_tag source_thermal">Thermal</span>
+{% else %}
+<span class="source_tag source_both">Both Reports</span>
+{% endif %}
 
-  </div>
+<div class="observation_text">
+{{ obs.observation if obs.observation else "Observation not available" }}
+</div>
+
+{% if obs.related_image_ids %}
+<div class="observation_images">
+
+{% for img in obs.related_image_ids %}
+
+{% if image_map[img] is defined %}
+<img src="{{ image_map[img] }}">
+{% else %}
+<div style="font-size:12px;color:#999">Image Not Available</div>
+{% endif %}
+
+{% endfor %}
+
+</div>
+{% endif %}
+
+</div>
+
+{% endfor %}
+
+{% else %}
+
+<div class="missing_box">No observations available.</div>
+
+{% endif %}
+
+</div>
+
+
+<!-- ROOT CAUSE -->
+
+<div class="section">
+<div class="section_title">3. Probable Root Cause</div>
+
+{% if ddr.probable_root_cause %}
+
+<ul>
+
+{% for cause in ddr.probable_root_cause %}
+<li>{{ cause }}</li>
+{% endfor %}
+
+</ul>
+
+{% else %}
+
+<div class="missing_box">Not Available</div>
+
+{% endif %}
+
+</div>
+
+
+<!-- SEVERITY -->
+
+<div class="section">
+<div class="section_title">4. Severity Assessment</div>
+
+{% if ddr.severity_assessment %}
+
+{% set level = ddr.severity_assessment.level | lower %}
+
+<div class="severity_box severity_{{ level }}">
+<strong>{{ ddr.severity_assessment.level }}</strong><br>
+{{ ddr.severity_assessment.reasoning }}
+</div>
+
+{% else %}
+
+<div class="missing_box">Severity assessment not available.</div>
+
+{% endif %}
+
+</div>
+
+
+<!-- ACTIONS -->
+
+<div class="section">
+<div class="section_title">5. Recommended Actions</div>
+
+{% if ddr.recommended_actions %}
+
+<ul class="actions_list">
+
+{% for action in ddr.recommended_actions %}
+<li>{{ action }}</li>
+{% endfor %}
+
+</ul>
+
+{% else %}
+
+<div class="missing_box">No recommended actions provided.</div>
+
+{% endif %}
+
+</div>
+
+
+<!-- NOTES -->
+
+<div class="section">
+<div class="section_title">6. Additional Notes</div>
+
+<div class="section_content">
+{{ ddr.additional_notes if ddr.additional_notes else "Not Available" }}
+</div>
+
+</div>
+
+
+<!-- MISSING INFO -->
+
+<div class="section">
+<div class="section_title">7. Missing or Unclear Information</div>
+
+<div class="missing_box">
+{{ ddr.missing_or_unclear_information if ddr.missing_or_unclear_information else "None reported." }}
+</div>
+
+</div>
+
+</div>
+
+<div class="report_footer">
+AI-generated DDR — Review by a qualified professional before acting on recommendations.
+</div>
+
+</div>
+
 </body>
 </html>
