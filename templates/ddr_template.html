@@ -99,6 +99,28 @@ margin-bottom:10px;
 line-height:1.6;
 }
 
+/* ── Thermal confirmation strip ── */
+.thermal_confirmation{
+background:#fff7ed;
+border-left:3px solid #f97316;
+padding:8px 12px;
+margin:8px 0 12px 0;
+font-size:13px;
+border-radius:4px;
+color:#7c2d12;
+line-height:1.5;
+}
+
+.thermal_confirmation strong{
+display:block;
+margin-bottom:2px;
+font-size:12px;
+text-transform:uppercase;
+letter-spacing:.4px;
+color:#c2410c;
+}
+
+/* ── Image grid ── */
 .observation_images{
 display:flex;
 flex-wrap:wrap;
@@ -112,8 +134,40 @@ max-height:200px;
 object-fit:contain;
 border-radius:4px;
 border:1px solid #ddd;
+background:#fff;
 }
 
+.img_missing{
+font-size:12px;
+color:#999;
+padding:8px 12px;
+border:1px dashed #ddd;
+border-radius:4px;
+background:#fafafa;
+}
+
+/* ── Root cause list ── */
+.root_cause_list{
+list-style:none;
+padding:0;
+}
+
+.root_cause_list li{
+padding:8px 0 8px 20px;
+border-bottom:1px solid #f0f0f0;
+position:relative;
+line-height:1.6;
+}
+
+.root_cause_list li::before{
+content:"•";
+position:absolute;
+left:4px;
+color:#1a3c5e;
+font-weight:bold;
+}
+
+/* ── Recommended actions list ── */
 .actions_list{
 list-style:none;
 padding:0;
@@ -123,6 +177,7 @@ padding:0;
 padding:8px 0 8px 20px;
 border-bottom:1px solid #f0f0f0;
 position:relative;
+line-height:1.6;
 }
 
 .actions_list li::before{
@@ -133,16 +188,19 @@ color:#1a3c5e;
 font-weight:bold;
 }
 
+/* ── Severity boxes ── */
 .severity_box{
 border-radius:6px;
 padding:16px 20px;
+line-height:1.6;
 }
 
-.severity_low{background:#d1fae5;border-left:4px solid #10b981}
-.severity_medium{background:#fef3c7;border-left:4px solid #f59e0b}
-.severity_high{background:#fee2e2;border-left:4px solid #ef4444}
+.severity_low     {background:#d1fae5;border-left:4px solid #10b981}
+.severity_medium  {background:#fef3c7;border-left:4px solid #f59e0b}
+.severity_high    {background:#fee2e2;border-left:4px solid #ef4444}
 .severity_critical{background:#fce7f3;border-left:4px solid #be185d}
 
+/* ── Missing info box ── */
 .missing_box{
 background:#fafafa;
 border:1px dashed #ccc;
@@ -150,8 +208,10 @@ padding:14px 18px;
 font-style:italic;
 color:#666;
 border-radius:6px;
+line-height:1.6;
 }
 
+/* ── Footer ── */
 .report_footer{
 background:#f4f6f9;
 padding:20px 40px;
@@ -168,181 +228,191 @@ text-align:center;
 
 <div class="report_wrapper">
 
-<div class="report_header">
-<h1>Detailed Diagnostic Report (DDR)</h1>
-<div class="report_meta">Generated on: {{ generated_date }}</div>
-</div>
+  <!-- ═══════════════════════════════════════
+       HEADER
+  ════════════════════════════════════════ -->
+  <div class="report_header">
+    <h1>Detailed Diagnostic Report (DDR)</h1>
+    <div class="report_meta">Generated on: {{ generated_date }}</div>
+  </div>
+
+  <div class="report_body">
+
+    <!-- ─────────────────────────────────────
+         1. PROPERTY ISSUE SUMMARY
+    ───────────────────────────────────── -->
+    <div class="section">
+      <div class="section_title">1. Property Issue Summary</div>
+
+      <div class="section_content">
+        {{ ddr.property_issue_summary if ddr.property_issue_summary else "Not Available" }}
+      </div>
+    </div>
 
-<div class="report_body">
+
+    <!-- ─────────────────────────────────────
+         2. AREA-WISE OBSERVATIONS
+    ───────────────────────────────────── -->
+    <div class="section">
+      <div class="section_title">2. Area-wise Observations</div>
+
+      {% if ddr.area_wise_observations %}
+
+        {% for obs in ddr.area_wise_observations %}
 
-<!-- PROPERTY SUMMARY -->
+        <div class="observation_card">
 
-<div class="section">
-<div class="section_title">1. Property Issue Summary</div>
+          <!-- Area heading -->
+          <div class="area_label">
+            {{ obs.area if obs.area else "General Area" }}
+          </div>
 
-<div class="section_content">
-{{ ddr.property_issue_summary if ddr.property_issue_summary else "Not Available" }}
-</div>
-</div>
+          <!-- Source badge -->
+          {% if obs.source == "inspection" %}
+            <span class="source_tag source_inspection">Inspection</span>
+          {% elif obs.source == "thermal" %}
+            <span class="source_tag source_thermal">Thermal</span>
+          {% else %}
+            <span class="source_tag source_both">Both Reports</span>
+          {% endif %}
+
+          <!-- Observation text -->
+          <div class="observation_text">
+            {{ obs.observation if obs.observation else "Observation not available." }}
+          </div>
 
+          <!-- Thermal confirmation -->
+          {% if obs.thermal_confirmation %}
+          <div class="thermal_confirmation">
+            <strong>🌡 Thermal Confirmation</strong>
+            {{ obs.thermal_confirmation }}
+          </div>
+          {% endif %}
+
+          <!-- Linked images -->
+          {% if obs.related_image_ids %}
+          <div class="observation_images">
 
-<!-- AREA OBSERVATIONS -->
+            {% for img_id in obs.related_image_ids %}
+
+              {% if img_id in image_map %}
+                <img src="file:///{{ image_map[img_id] }}" alt="{{ img_id }}">
+              {% else %}
+                <div class="img_missing">
+                  Image not available: {{ img_id }}
+                </div>
+              {% endif %}
+
+            {% endfor %}
 
-<div class="section">
-<div class="section_title">2. Area-wise Observations</div>
+          </div>
+          {% endif %}
 
-{% if ddr.area_wise_observations %}
+        </div>
+
+        {% endfor %}
+
+      {% else %}
+        <div class="missing_box">No observations available.</div>
+      {% endif %}
+
+    </div>
+
+
+    <!-- ─────────────────────────────────────
+         3. PROBABLE ROOT CAUSE
+    ───────────────────────────────────── -->
+    <div class="section">
+      <div class="section_title">3. Probable Root Cause</div>
+
+      {% if ddr.probable_root_cause %}
+        <ul class="root_cause_list">
+          {% for cause in ddr.probable_root_cause %}
+            <li>{{ cause }}</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="missing_box">Not Available</div>
+      {% endif %}
 
-{% for obs in ddr.area_wise_observations %}
+    </div>
 
-<div class="observation_card">
 
-<div class="area_label">
-{{ obs.area if obs.area else "General Area" }}
-</div>
+    <!-- ─────────────────────────────────────
+         4. SEVERITY ASSESSMENT
+    ───────────────────────────────────── -->
+    <div class="section">
+      <div class="section_title">4. Severity Assessment</div>
 
-{% if obs.source == "inspection" %}
-<span class="source_tag source_inspection">Inspection</span>
-{% elif obs.source == "thermal" %}
-<span class="source_tag source_thermal">Thermal</span>
-{% else %}
-<span class="source_tag source_both">Both Reports</span>
-{% endif %}
+      {% if ddr.severity_assessment %}
 
-<div class="observation_text">
-{{ obs.observation if obs.observation else "Observation not available" }}
-</div>
+        {% set level = ddr.severity_assessment.level | lower %}
 
-{% if obs.related_image_ids %}
-<div class="observation_images">
+        <div class="severity_box severity_{{ level }}">
+          <strong>{{ ddr.severity_assessment.level }}</strong><br>
+          {{ ddr.severity_assessment.reasoning }}
+        </div>
 
-{% for img in obs.related_image_ids %}
+      {% else %}
+        <div class="missing_box">Severity assessment not available.</div>
+      {% endif %}
 
-{% if image_map[img] is defined %}
-<img src="{{ image_map[img] }}">
-{% else %}
-<div style="font-size:12px;color:#999">Image Not Available</div>
-{% endif %}
+    </div>
 
-{% endfor %}
 
-</div>
-{% endif %}
+    <!-- ─────────────────────────────────────
+         5. RECOMMENDED ACTIONS
+    ───────────────────────────────────── -->
+    <div class="section">
+      <div class="section_title">5. Recommended Actions</div>
 
-</div>
+      {% if ddr.recommended_actions %}
+        <ul class="actions_list">
+          {% for action in ddr.recommended_actions %}
+            <li>{{ action }}</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="missing_box">No recommended actions provided.</div>
+      {% endif %}
 
-{% endfor %}
+    </div>
 
-{% else %}
 
-<div class="missing_box">No observations available.</div>
+    <!-- ─────────────────────────────────────
+         6. ADDITIONAL NOTES
+    ───────────────────────────────────── -->
+    <div class="section">
+      <div class="section_title">6. Additional Notes</div>
 
-{% endif %}
+      <div class="section_content">
+        {{ ddr.additional_notes if ddr.additional_notes else "Not Available" }}
+      </div>
+    </div>
 
-</div>
 
+    <!-- ─────────────────────────────────────
+         7. MISSING OR UNCLEAR INFORMATION
+    ───────────────────────────────────── -->
+    <div class="section">
+      <div class="section_title">7. Missing or Unclear Information</div>
 
-<!-- ROOT CAUSE -->
+      <div class="missing_box">
+        {{ ddr.missing_or_unclear_information if ddr.missing_or_unclear_information else "None reported." }}
+      </div>
+    </div>
 
-<div class="section">
-<div class="section_title">3. Probable Root Cause</div>
+  </div><!-- end report_body -->
 
-{% if ddr.probable_root_cause %}
 
-<ul>
+  <!-- ═══════════════════════════════════════
+       FOOTER
+  ════════════════════════════════════════ -->
+  <div class="report_footer">
+    AI-generated DDR — Review by a qualified professional before acting on recommendations.
+  </div>
 
-{% for cause in ddr.probable_root_cause %}
-<li>{{ cause }}</li>
-{% endfor %}
-
-</ul>
-
-{% else %}
-
-<div class="missing_box">Not Available</div>
-
-{% endif %}
-
-</div>
-
-
-<!-- SEVERITY -->
-
-<div class="section">
-<div class="section_title">4. Severity Assessment</div>
-
-{% if ddr.severity_assessment %}
-
-{% set level = ddr.severity_assessment.level | lower %}
-
-<div class="severity_box severity_{{ level }}">
-<strong>{{ ddr.severity_assessment.level }}</strong><br>
-{{ ddr.severity_assessment.reasoning }}
-</div>
-
-{% else %}
-
-<div class="missing_box">Severity assessment not available.</div>
-
-{% endif %}
-
-</div>
-
-
-<!-- ACTIONS -->
-
-<div class="section">
-<div class="section_title">5. Recommended Actions</div>
-
-{% if ddr.recommended_actions %}
-
-<ul class="actions_list">
-
-{% for action in ddr.recommended_actions %}
-<li>{{ action }}</li>
-{% endfor %}
-
-</ul>
-
-{% else %}
-
-<div class="missing_box">No recommended actions provided.</div>
-
-{% endif %}
-
-</div>
-
-
-<!-- NOTES -->
-
-<div class="section">
-<div class="section_title">6. Additional Notes</div>
-
-<div class="section_content">
-{{ ddr.additional_notes if ddr.additional_notes else "Not Available" }}
-</div>
-
-</div>
-
-
-<!-- MISSING INFO -->
-
-<div class="section">
-<div class="section_title">7. Missing or Unclear Information</div>
-
-<div class="missing_box">
-{{ ddr.missing_or_unclear_information if ddr.missing_or_unclear_information else "None reported." }}
-</div>
-
-</div>
-
-</div>
-
-<div class="report_footer">
-AI-generated DDR — Review by a qualified professional before acting on recommendations.
-</div>
-
-</div>
+</div><!-- end report_wrapper -->
 
 </body>
 </html>

@@ -8,10 +8,15 @@ def normalize_document_text(text: str) -> str:
     Clean raw PDF text before sending it to the LLM.
 
     Removes:
-    - headers / footers
-    - repeated metadata
-    - duplicate lines
+    - repeated duplicate lines
     - extra whitespace
+    - page label markers
+
+    Keeps:
+    - all observation content
+    - area names
+    - inspection findings
+    - thermal readings
     """
 
     if not text:
@@ -29,24 +34,18 @@ def normalize_document_text(text: str) -> str:
         if not line:
             continue
 
-        # remove page labels
+        # remove internal page markers added by extractor
         if line.lower().startswith("[page"):
             continue
 
-        # remove repetitive metadata
+        # remove confidential watermarks
         if "confidential" in line.lower():
-            continue
-
-        if "inspection date" in line.lower():
-            continue
-
-        if "client name" in line.lower():
             continue
 
         # collapse excessive whitespace
         line = re.sub(r"\s+", " ", line)
 
-        # avoid duplicates
+        # avoid duplicate lines
         if line in seen:
             continue
 
@@ -57,45 +56,72 @@ def normalize_document_text(text: str) -> str:
 
 
 # ---------------------------------------------------------
-# OPTIONAL: extract observation sentences
+# Extract observation sentences
 # ---------------------------------------------------------
 
 def extract_observation_sentences(text: str):
     """
-    Try to extract observation-like sentences from document text.
-    Useful for guiding the LLM.
+    Extract observation-like sentences from document text.
+
+    Covers both inspection keywords and thermal keywords.
     """
 
-    patterns = [
+    # inspection keywords
+    inspection_patterns = [
         r"dampness.*",
         r"leakage.*",
         r"crack.*",
         r"seepage.*",
         r"moisture.*",
         r"efflorescence.*",
-        r"plumbing.*"
+        r"plumbing.*",
+        r"hollow.*",
+        r"tile.*",
+        r"ceiling.*",
+        r"skirting.*",
+        r"parking.*",
+        r"outlet.*",
+        r"blackish.*",
+        r"observed.*",
     ]
+
+    # thermal keywords
+    thermal_patterns = [
+        r"hotspot.*",
+        r"coldspot.*",
+        r"thermal.*",
+        r"temperature.*",
+        r"emissivity.*",
+        r"\d+\.\d+\s*°[Cc].*",   # matches temperature readings like 23.4 °C
+    ]
+
+    all_patterns = inspection_patterns + thermal_patterns
 
     observations = []
 
     for line in text.split("\n"):
 
-        for pattern in patterns:
+        line = line.strip()
 
+        if not line:
+            continue
+
+        for pattern in all_patterns:
             if re.search(pattern, line, re.IGNORECASE):
                 observations.append(line)
                 break
 
-    return observations
+    # limit to avoid overloading prompt
+    return observations[:40]
 
 
 # ---------------------------------------------------------
 # Build normalized context for LLM
 # ---------------------------------------------------------
 
-def build_llm_context(inspection_text: str, thermal_text: str):
+def build_llm_context(inspection_text: str, thermal_text: str) -> dict:
     """
-    Returns cleaned context for the analyzer.
+    Returns cleaned and structured context for the analyzer.
     """
 
     inspection_clean = normalize_document_text(inspection_text)
@@ -104,11 +130,9 @@ def build_llm_context(inspection_text: str, thermal_text: str):
     inspection_obs = extract_observation_sentences(inspection_clean)
     thermal_obs = extract_observation_sentences(thermal_clean)
 
-    context = {
+    return {
         "inspection_clean": inspection_clean,
         "thermal_clean": thermal_clean,
         "inspection_observations": inspection_obs,
         "thermal_observations": thermal_obs
     }
-
-    return context

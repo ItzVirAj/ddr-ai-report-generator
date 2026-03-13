@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 
-def make_sure_folder_exists(folder_path):
+def make_sure_folder_exists(folder_path: str) -> None:
     """
     Ensure a folder exists before writing files into it.
     """
@@ -16,7 +16,7 @@ def make_sure_folder_exists(folder_path):
     Path(folder_path).mkdir(parents=True, exist_ok=True)
 
 
-def save_json(data, file_path):
+def save_json(data, file_path: str) -> None:
     """
     Save a dict as pretty JSON for debugging or storage.
     Automatically creates parent folder if needed.
@@ -31,7 +31,7 @@ def save_json(data, file_path):
         json.dump(data, _f, indent=2, ensure_ascii=False)
 
 
-def load_json(file_path):
+def load_json(file_path: str) -> dict:
     """
     Load a JSON file safely.
     """
@@ -43,13 +43,13 @@ def load_json(file_path):
         return json.load(_f)
 
 
-def clean_text(raw_text):
+def clean_text(raw_text: str) -> str:
     """
-    Clean messy PDF text before sending to the LLM.
+    Clean messy PDF text.
 
     Fixes:
     - random whitespace
-    - broken newlines
+    - tab characters
     - empty lines
     """
 
@@ -66,15 +66,13 @@ def clean_text(raw_text):
         if not _stripped:
             continue
 
-        # remove weird PDF artifacts
         _stripped = _stripped.replace("\t", " ")
-
         _cleaned.append(_stripped)
 
     return "\n".join(_cleaned)
 
 
-def get_file_stem(file_path):
+def get_file_stem(file_path: str) -> str:
     """
     Returns filename without extension.
 

@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from src.extractor import extract_from_pdf
-from src.analyzer import CodeAnalyzer
+from src.analyzer import DDRAnalyzer
 from src.report_builder import build_html_report
 from src.utils import save_json, make_sure_folder_exists
 from src.image_mapper import map_images_to_observations
@@ -87,7 +87,7 @@ def main():
     make_sure_folder_exists(_image_folder)
 
     # initialize analyzer
-    analyzer = CodeAnalyzer()
+    analyzer = DDRAnalyzer()
 
     # ---------------------------------------------------
     # STEP 1 — INSPECTION EXTRACTION
@@ -150,11 +150,15 @@ def main():
 
     print("\n[step 4/4] Building HTML report ...")
 
+    # FIXED: pass pages so keyword matching works
     _ddr_data["area_wise_observations"] = map_images_to_observations(
-    _ddr_data.get("area_wise_observations", []),
-    _inspection_data.get("images", []),
-    _thermal_data.get("images", [])
-)
+        observations=_ddr_data.get("area_wise_observations", []),
+        inspection_images=_inspection_data.get("images", []),
+        thermal_images=_thermal_data.get("images", []),
+        inspection_pages=_inspection_data.get("pages", []),   # NEW
+        thermal_pages=_thermal_data.get("pages", [])          # NEW
+    )
+
     _report_path = build_html_report(
         ddr_data=_ddr_data,
         inspection_data=_inspection_data,

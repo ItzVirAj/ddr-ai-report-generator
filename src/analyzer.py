@@ -19,7 +19,7 @@ load_dotenv(
 )
 
 
-class CodeAnalyzer:
+class DDRAnalyzer:
 
     def __init__(self, model: str = "gemini-3.1-flash-lite-preview"):
         """
@@ -97,12 +97,10 @@ class CodeAnalyzer:
         inspection_text: str,
         thermal_text: str
     ) -> Dict[str, Any]:
-
         """
         Generate DDR structured report from inspection + thermal documents.
         """
 
-        # Normalize document text
         context = build_llm_context(inspection_text, thermal_text)
 
         inspection_clean = self._truncate(context["inspection_clean"])
@@ -111,13 +109,17 @@ class CodeAnalyzer:
         inspection_obs = context.get("inspection_observations", [])
         thermal_obs = context.get("thermal_observations", [])
 
+        # -------------------------------------------------------
+        # FIXED PROMPT — enforces room separation + thermal linking
+        # -------------------------------------------------------
+
         prompt = textwrap.dedent(f"""
         You are a professional building diagnostics engineer.
 
         Analyze the following inspection report and thermal scan report
         and produce a structured Detailed Diagnostic Report (DDR).
 
-        Return ONLY valid JSON.
+        Return ONLY valid JSON. No explanation. No markdown.
 
         Required JSON schema:
 
@@ -128,12 +130,13 @@ class CodeAnalyzer:
               "area": "",
               "observation": "",
               "source": "inspection | thermal | both",
+              "thermal_confirmation": "",
               "related_image_ids": []
             }}
           ],
           "probable_root_cause": [],
           "severity_assessment": {{
-            "level": "Low | Medium | High",
+            "level": "Low | Medium | High | Critical",
             "reasoning": ""
           }},
           "recommended_actions": [],
@@ -141,13 +144,46 @@ class CodeAnalyzer:
           "missing_or_unclear_information": ""
         }}
 
-        Rules:
-        - Do NOT invent facts
-        - Extract observations from inspection findings
-        - Use thermal report to confirm moisture patterns
-        - Avoid duplicate observations
-        - Combine thermal + inspection insights
-        - If missing write "Not Available"
+        STRICT RULES — follow exactly:
+
+        1. Each observation must cover ONE ROOM or ONE AREA ONLY.
+           - WRONG: "Hall, Bedroom, Kitchen show dampness"
+           - CORRECT: Three separate observations for Hall, Bedroom, Kitchen
+
+        2. thermal_confirmation field:
+           - If thermal report confirms moisture in that area → write the thermal reading or note
+           - If thermal report does NOT mention that area → write "Not confirmed by thermal scan"
+           - Never leave it blank
+
+        3. source field:
+           - "inspection" → only in inspection report
+           - "thermal" → only in thermal report
+           - "both" → confirmed in both reports
+
+        4. related_image_ids → leave as empty list []
+           (images will be mapped automatically after analysis)
+
+        5. Do NOT invent facts. Use only what is in the reports.
+
+        6. If information is missing → write "Not Available"
+
+        7. probable_root_cause must be a list of strings.
+
+        8. recommended_actions must be a list of strings.
+
+        9. THERMAL DATA INTERPRETATION RULE:
+           - The thermal report may not label rooms by name
+           - It uses image file codes (e.g. RB02380X.JPG)
+           - If thermal coldspot readings are below 23°C at skirting level,
+             this confirms moisture presence at that zone
+           - A hotspot-to-coldspot delta of 3°C or more = confirmed moisture
+           - Apply this logic across all room observations where skirting
+             dampness is reported in the inspection report
+           - Do NOT write "Not confirmed" if thermal scans exist and show
+             coldspot patterns consistent with dampness
+           - Example thermal_confirmation text:
+             "Thermal scan (RB02380X) shows coldspot at 23.4°C with delta
+              of 5.4°C confirming subsurface moisture at skirting level."
 
         Key inspection observations detected:
         {inspection_obs}
@@ -163,7 +199,6 @@ class CodeAnalyzer:
         """).strip()
 
         try:
-
             response_text = self._generate(prompt)
 
             if not response_text:
@@ -178,26 +213,19 @@ class CodeAnalyzer:
                     "Gemini returned invalid JSON:\n\n" + cleaned[:1000]
                 )
 
-            # --------------------------------------------------
-            # Ensure observations exist
-            # --------------------------------------------------
-
             if "area_wise_observations" not in ddr_json:
                 ddr_json["area_wise_observations"] = []
 
-            # --------------------------------------------------
-            # Severity fallback engine
-            # --------------------------------------------------
+            # ensure thermal_confirmation exists on all observations
+            for obs in ddr_json["area_wise_observations"]:
+                if isinstance(obs, dict):
+                    if not obs.get("thermal_confirmation"):
+                        obs["thermal_confirmation"] = "Not confirmed by thermal scan"
 
             if not ddr_json.get("severity_assessment"):
-
                 ddr_json["severity_assessment"] = evaluate_severity(
                     ddr_json.get("area_wise_observations", [])
                 )
-
-            # --------------------------------------------------
-            # Validate final structure
-            # --------------------------------------------------
 
             validated_ddr = validate_ddr(ddr_json)
 
@@ -207,12 +235,10 @@ class CodeAnalyzer:
             }
 
         except Exception as e:
-
             return {
                 "success": False,
                 "error": str(e)
             }
-
     # ------------------------------------------------------------------
     # EXISTING CODE ANALYSIS METHODS (UNCHANGED)
     # ------------------------------------------------------------------
