@@ -1,0 +1,12 @@
+@"
+.env
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+outputs/
+inputs/
+venv/
+*.egg-info/
+"@ | Out-File -FilePath .gitignore -Encoding utf8
+ddr_env/
